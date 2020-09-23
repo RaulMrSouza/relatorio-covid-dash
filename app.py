@@ -42,7 +42,7 @@ text_style = {
             }
 
 drop_style = dict(
-                    width='80%',
+                    width='60%',
                     display='inline-block',
                     verticalAlign="middle",
                 )
