@@ -34,6 +34,7 @@ estados_siglas = ["AC", "AL", "AM", "AP", "BA", "CE", "DF", "ES", "GO", "MA", "M
 
 
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
+server = app.server
 
 text_style = {
                 'textAlign': 'center',
