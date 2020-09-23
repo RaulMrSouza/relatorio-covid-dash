@@ -1,6 +1,8 @@
 certifi==2019.6.16
 chardet==3.0.4
 Click==7.0
+Cython @ file:///C:/ci/cython_1594829190914/work
+cytoolz==0.10.1
 dash==1.16.0
 dash-core-components==1.12.0
 dash-html-components==1.1.1
