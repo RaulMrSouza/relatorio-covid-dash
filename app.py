@@ -48,11 +48,6 @@ drop_style = dict(
                 )
 
 drop_margin = {'marginBottom': 12, 'marginTop': 12, 'marginLeft' : 25}
-# fig.update_layout(
-#     plot_bgcolor=colors['background'],
-#     paper_bgcolor=colors['background'],
-#     font_color=colors['text']
-# )
 
 app.layout = html.Div(style={'backgroundColor': colors['background']}, children=[
     html.H1(children='Relatório Covid',
@@ -153,15 +148,16 @@ def update_graph(estado, campo_mapa, campo_grafico):
                     'População Estimada em 2019']].sort_values(by=['Casos Confirmados por 100k habitantes'], ascending=False).head(10)
 
     estado = estado.sort_values(by=['date'])
+    estado['Media 7 dias'] = estado[campo_grafico].rolling(window=7).mean()
     estado = estado.tail(90)
 
     estado = estado.set_index('date')
     estado['data'] = estado.index
-    estado['Media 7 dias'] = estado[campo_grafico].rolling(window=7).mean()
+    
 
     fig2 = px.line(estado, x='data', y="Media 7 dias", title=campo_grafico)
     fig2.add_bar(x=estado.index, y=estado[campo_grafico], name=campo_grafico)
-    #fig2.add
+
     fig2.update_layout(
      plot_bgcolor=colors['background'],
      paper_bgcolor=colors['background'],
@@ -202,16 +198,6 @@ def update_graph(estado, campo_mapa, campo_grafico):
         'fontWeight': 'bold'
     })
 
-    # html.Table([
-    #     html.Thead(
-    #         html.Tr([html.Th(col) for col in tabelaDF.columns])
-    #     ),
-    #     html.Tbody([
-    #         html.Tr([
-    #             html.Td(tabelaDF.iloc[i][col]) for col in tabelaDF.columns
-    #         ]) for i in range(min(len(tabelaDF)))
-    #     ])
-    # ])
 
     mapa = px.choropleth(covid, geojson=cidades, locations='codarea', color=campo_mapa,
                            color_continuous_scale="Viridis",
