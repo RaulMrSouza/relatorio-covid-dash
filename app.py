@@ -42,7 +42,7 @@ text_style = {
             }
 
 drop_style = dict(
-                    width='60%',
+                    width='80%',
                     display='inline-block',
                     verticalAlign="middle",
                 )
@@ -79,12 +79,12 @@ app.layout = html.Div(style={'backgroundColor': colors['background']}, children=
             children=html.Div(id="cidades", style={'marginLeft' : 12, 'marginRight' : 12})
         ),
 
-    html.H4(children='Evoluçao no Estado', style= text_style),
+    html.H4(children='Evolução no Estado', style= text_style),
     html.Div( [html.Label('Selecionar Campo do grafico'), dcc.Dropdown(
         id='grafico-dropdown',
         options=[{'label': i, 'value': i}
-                 for i in ["Obitos por dia", "Novos Confirmados por dia", "Casos Confirmados por 100k habitantes", "Total de Confirmados",  "Total de Obitos", "Taxa de Mortalidade"]],
-        value='Obitos por dia',
+                 for i in ["Óbitos por dia", "Novos Confirmados por dia", "Casos Confirmados por 100k habitantes", "Total de Confirmados",  "Total de Óbitos", "Taxa de Mortalidade"]],
+        value='Óbitos por dia',
         style=drop_style
     )]
     , style=drop_margin),
@@ -100,7 +100,7 @@ app.layout = html.Div(style={'backgroundColor': colors['background']}, children=
     dcc.Dropdown(
         id='mapa-dropdown',
         options=[{'label': i, 'value': i}
-                 for i in ["Casos Confirmados por 100k habitantes", "Total de Confirmados",  "Total de Obitos", "Taxa de Mortalidade"]],
+                 for i in ["Casos Confirmados por 100k habitantes", "Total de Confirmados",  "Total de Óbitos", "Taxa de Mortalidade"]],
         value='Casos Confirmados por 100k habitantes',
         style=drop_style
     )]
@@ -138,18 +138,18 @@ def update_graph(estado, campo_mapa, campo_grafico):
     file_object = io.StringIO(response.content.decode('utf-8'))
     estado = pd.read_csv(file_object)
 
-    covid = covid.rename(columns={"last_available_confirmed_per_100k_inhabitants": "Casos Confirmados por 100k habitantes", "last_available_confirmed": "Total de Confirmados", "last_available_deaths": "Total de Obitos",
-                                "estimated_population_2019": "População Estimada em 2019", "city": "Nome", "new_deaths": "Obitos por dia", "last_available_death_rate": "Taxa de Mortalidade", "new_confirmed": "Novos Confirmados por dia"})
+    covid = covid.rename(columns={"last_available_confirmed_per_100k_inhabitants": "Casos Confirmados por 100k habitantes", "last_available_confirmed": "Total de Confirmados", "last_available_deaths": "Total de Óbitos",
+                                "estimated_population_2019": "População Estimada em 2019", "city": "Nome", "new_deaths": "Óbitos por dia", "last_available_death_rate": "Taxa de Mortalidade", "new_confirmed": "Novos Confirmados por dia"})
 
-    estado = estado.rename(columns={"last_available_confirmed_per_100k_inhabitants": "Casos Confirmados por 100k habitantes", "last_available_confirmed": "Total de Confirmados", "last_available_deaths": "Total de Obitos",
-                                    "estimated_population_2019": "População Estimada em 2019", "city": "Nome", "new_deaths": "Obitos por dia", "last_available_death_rate": "Taxa de Mortalidade", "new_confirmed": "Novos Confirmados por dia"})
+    estado = estado.rename(columns={"last_available_confirmed_per_100k_inhabitants": "Casos Confirmados por 100k habitantes", "last_available_confirmed": "Total de Confirmados", "last_available_deaths": "Total de Óbitos",
+                                    "estimated_population_2019": "População Estimada em 2019", "city": "Nome", "new_deaths": "Óbitos por dia", "last_available_death_rate": "Taxa de Mortalidade", "new_confirmed": "Novos Confirmados por dia"})
     # remover nulos
     covid = covid[covid['Casos Confirmados por 100k habitantes'] > 0]
     idEstado = int(estado['city_ibge_code'].iloc[0])
 
     covid['Casos Confirmados por 100k habitantes'] = covid['Casos Confirmados por 100k habitantes'].round(2)
 
-    tabelaDF = covid[['Nome', 'Casos Confirmados por 100k habitantes', 'Total de Confirmados', 'Total de Obitos', 'Taxa de Mortalidade',
+    tabelaDF = covid[['Nome', 'Casos Confirmados por 100k habitantes', 'Total de Confirmados', 'Total de Óbitos', 'Taxa de Mortalidade',
                     'População Estimada em 2019']].sort_values(by=['Casos Confirmados por 100k habitantes'], ascending=False).head(10)
 
     estado = estado.sort_values(by=['date'])
@@ -181,7 +181,7 @@ def update_graph(estado, campo_mapa, campo_grafico):
     covid['hover'] = covid['Nome'] + '<br>' + \
     'casos por 100k h. :' + covid['Casos Confirmados por 100k habitantes'].astype(str) + '<br>' + \
     'Taxa Letalidade: ' + covid['Taxa de Mortalidade'].astype(str) + '<br>' + \
-    'Total de Obitos: ' + covid['Total de Obitos'].astype(str) + '<br>' + \
+    'Total de Óbitos: ' + covid['Total de Óbitos'].astype(str) + '<br>' + \
     'População Est. 2019: ' + covid['População Estimada em 2019'].astype(str)
 
     tabela = dash_table.DataTable(data=data, columns=columns,
