@@ -4,6 +4,12 @@ import pandas as pd
 import difflib
 import numpy as np
 import time
+import dash
+import dash_core_components as dcc
+import dash_html_components as html
+import dash_table
+from dash.dependencies import Input, Output
+import flask
 #from werkzeug.contrib.cache import SimpleCache
 #from flask_caching import Cache
 #cache = SimpleCache()
@@ -13,13 +19,26 @@ config = {
     "CACHE_TYPE": "simple", # Flask-Caching related configs
     "CACHE_DEFAULT_TIMEOUT": 300
 }
-app = Flask(__name__)
+#app = Flask(__name__)
+external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
-server = app.server
+server = flask.Flask(__name__)
+
+app = dash.Dash(
+    __name__,
+    server=server,
+    routes_pathname_prefix='/dash/'
+)
+
+
+#server = app.server
 
 # tell Flask to use the above defined config
 #app.config.from_mapping(config)
 #cache = Cache(app)
+
+
+app.layout = html.Div(style={'backgroundColor': '#FFFFFF'})
 
 def UnidadePorTexto(quantidade):
     for i,c in enumerate(quantidade):
@@ -52,13 +71,13 @@ def iniciar():
     insumosNomes = insumos.DESCR
     insumosNomes = np.unique(insumosNomes).tolist()
     insumos = insumos[insumos['ANO'] >= 2019]
-    cache.set('insumos', insumos, timeout=5 * 60*300)
-    cache.set('insumosNomes', insumosNomes, timeout=5 * 60*300)
+    #cache.set('insumos', insumos, timeout=5 * 60*300)
+    #cache.set('insumosNomes', insumosNomes, timeout=5 * 60*300)
     insumosPreco = pd.read_csv("InsumosPreco2.csv")
     insumosPreco = insumosPreco.sort_values(by=['COUNT'], ascending=False)
-    cache.set('insumosPreco', insumosPreco, timeout=5 * 60*300)
+    #cache.set('insumosPreco', insumosPreco, timeout=5 * 60*300)
     return 'Ok';
-@app.route('/preco')
+@server.route('/preco')
 def calcular_preco():
     try:
 
