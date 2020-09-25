@@ -1,222 +1,200 @@
-# -*- coding: utf-8 -*-
-
-# Run this app with `python app.py` and
-# visit http://127.0.0.1:8050/ in your web browser.
-
-from plotly.graph_objs.layout.shape import Line
-import dash
-import dash_core_components as dcc
-import dash_html_components as html
-import dash_table
-from dash.dependencies import Input, Output
-import plotly
-import plotly.express as px
-import plotly.graph_objects as go
+from flask import Flask
+from flask import request
 import pandas as pd
+import difflib
+import numpy as np
+import time
+#from werkzeug.contrib.cache import SimpleCache
+from flask_caching import Cache
+#cache = SimpleCache()
 
-import requests
-import io
-
-external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
-
-colors = {
-    'background': '#FFFFFF', #'#C0C0C0', #'#111111',
-    'text': '#111111'  #'#7FDBFF'
+config = {
+    "DEBUG": True,          # some Flask specific configs
+    "CACHE_TYPE": "simple", # Flask-Caching related configs
+    "CACHE_DEFAULT_TIMEOUT": 300
 }
+app = Flask(__name__)
 
-# baixar csv do dataset
-headers = {
-    'Content-Type': 'application/json;charset=UTF-8', 'User-Agent': 'google-colab',
-    'Accept': 'application/json, text/plain, */*', 'Accept-Encoding': 'gzip, deflate, br', 'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-}
+# tell Flask to use the above defined config
+app.config.from_mapping(config)
+#cache = Cache(app)
 
-estados_siglas = ["AC", "AL", "AM", "AP", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RO", "RS", "RR", "SC", "SE", "SP", "TO"]
-
-
-app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
-server = app.server
-
-text_style = {
-                'textAlign': 'center',
-                'color': colors['text']
-            }
-
-drop_style = dict(
-                    width='60%',
-                    display='inline-block',
-                    verticalAlign="middle",
-                )
-
-drop_margin = {'marginBottom': 12, 'marginTop': 12, 'marginLeft' : 25}
-
-app.layout = html.Div(style={'backgroundColor': colors['background']}, children=[
-    html.H1(children='Relatório Covid',
-            style= text_style
-            ),
-
-    html.Div(children='''
-        Teste em Dash para app de dados
-    ''', style= text_style
-             ),
-
-    html.Div( [html.Label('Selecionar sigla de estado'), dcc.Dropdown(
-        id='estado-dropdown',
-        options=[{'label': i, 'value': i}
-                 for i in estados_siglas],
-        value='SP',
-        style=drop_style
-    )], style=drop_margin),
-
-    html.H4(children='Cidades mais afetadas', style= text_style),
-    dcc.Loading(
-            id="loading-1",
-            type="circle",
-            children=html.Div(id="cidades", style={'marginLeft' : 12, 'marginRight' : 12})
-        ),
-
-    html.H4(children='Evolução no Estado', style= text_style),
-    html.Div( [html.Label('Selecionar Campo do grafico'), dcc.Dropdown(
-        id='grafico-dropdown',
-        options=[{'label': i, 'value': i}
-                 for i in ["Óbitos por dia", "Novos Confirmados por dia", "Casos Confirmados por 100k habitantes", "Total de Confirmados",  "Total de Óbitos", "Taxa de Mortalidade"]],
-        value='Óbitos por dia',
-        style=drop_style
-    )]
-    , style=drop_margin),
-
-    dcc.Loading(
-            id="loading-2",
-            type="circle",
-            children=dcc.Graph( id='grafico-barras')
-    ),
-
-    html.H4(children='Mapa Cloroplético', style= text_style),
-    html.Div( [html.Label('Selecionar Campo do Mapa'),
-    dcc.Dropdown(
-        id='mapa-dropdown',
-        options=[{'label': i, 'value': i}
-                 for i in ["Casos Confirmados por 100k habitantes", "Total de Confirmados",  "Total de Óbitos", "Taxa de Mortalidade"]],
-        value='Casos Confirmados por 100k habitantes',
-        style=drop_style
-    )]
-    , style=drop_margin),
-
-    dcc.Loading(
-            id="loading-3",
-            type="circle",
-            children=dcc.Graph( id='mapa')
-    )
-
+def UnidadePorTexto(quantidade):
+    for i,c in enumerate(quantidade):
+        if not c.isdigit() and c != ',' and c != '.' and c != ' ':
+            break
+    qtd= -1
+    try:
+        qtd = float(quantidade[:i])
+    except ValueError:
+        print("")
+    unidade=quantidade[i:]
     
-])
+    return (qtd, unidade)
+
+@app.route('/')
+def Hello():
+    return 'Hi';
+
+@app.route('/iniciar')
+def iniciar():
+    insumos = pd.read_csv("roval2.csv")
+    insumos['PRCORRETO'] = insumos['PRCORRETO'].astype(float)
+    #insumos['PRCORRETO'] = insumos['PRCORRETO'].str.replace(',', '.').astype(float)
+    insumos.DESCR = insumos.DESCR.astype(str)
+
+    insumos['DESCR'] = insumos['DESCR'].str.strip()
+    insumos['UNIDA'] = insumos['UNIDA'].str.strip()
+    insumos['UNIVOL'] = insumos['UNIVOL'].str.strip()
+
+    insumosNomes = insumos.DESCR
+    insumosNomes = np.unique(insumosNomes).tolist()
+    insumos = insumos[insumos['ANO'] >= 2019]
+    cache.set('insumos', insumos, timeout=5 * 60*300)
+    cache.set('insumosNomes', insumosNomes, timeout=5 * 60*300)
+    insumosPreco = pd.read_csv("InsumosPreco2.csv")
+    insumosPreco = insumosPreco.sort_values(by=['COUNT'], ascending=False)
+    cache.set('insumosPreco', insumosPreco, timeout=5 * 60*300)
+    return 'Ok';
+@app.route('/preco')
+def calcular_preco():
+    try:
+
+        start_time = time.time()
+
+        desc = request.args.get('desc', str)
+        valor = request.args.get('valor', float)
+        #insumos = pd.read_csv("roval2.csv")
+        print("--- %s seconds ---" % (time.time() - start_time))
+        start_time = time.time()
+        #insumos = cache.get('insumos')
+        insumos = None
+        try:
+            if insumos == None:
+                insumos = pd.read_csv("roval2.csv")
+                insumosNomes = insumos.DESCR
+                insumosNomes = np.unique(insumosNomes).tolist()
+                insumosPreco = pd.read_csv("InsumosPreco2.csv")
+                #cache.set('insumos', insumos, timeout=5 * 60*300)
+                #ache.set('insumosNomes', insumosNomes, timeout=5 * 60*300)
+                insumosPreco = insumosPreco.sort_values(by=['COUNT'], ascending=False)
+                #cache.set('insumosPreco', insumosPreco, timeout=5 * 60*300)
+        except :
+            pass
+        #insumosNomes = cache.get('insumosNomes')
+        #insumosPreco = cache.get('insumosPreco')
+        
+        insumos = insumos.sort_values(by=['COUNT'], ascending=False)
+
+        orcamentos = pd.DataFrame(data={'Descricao': [desc.upper()], 'Valor': [valor]})
+
+        orcamentos = orcamentos.dropna(subset=['Descricao'])
+
+        orcamentos = orcamentos.head(200)
+
+        print("--- %s Carregar ---" % (time.time() - start_time))
+        start_time = time.time()
+
+            
+        for index, row in orcamentos.iterrows():
+            
+            formula = row['Descricao']
+            
+            formulaVolume = str(formula).split('|')[0]
+            
+            (formulaQtd, formulaUnidade) = UnidadePorTexto(formulaVolume)
+            
+            insumosFormula = str(formula).split('|')[1].split(';')
+            
+            total = 0
+            
+            nivelIncerteza = 0
+            
+            valorIncerto = 0
+
+            valorInsumo = ""
+
+            for insumo in insumosFormula:
+
+                print("--- %s seconds ---" % (time.time() - start_time))
+                start_time = time.time()
+
+                insumoDescr = difflib.get_close_matches((''.join(insumo.split(' ')[:-1])).strip(), insumosNomes, n=1, cutoff=.6)
+
+                print("match--- %s seconds ---" % (time.time() - start_time))
+                start_time = time.time()
+                
+                quantidade = insumo.split(' ')[-1]
+                (qtd, unidade) = UnidadePorTexto(quantidade)
+
+                if len(insumoDescr) == 0:
+                    print(insumo.strip() + ": Não encontrado match")
+                    nivelIncerteza = 3
+                elif qtd == -1:
+                    print("Qtd Invalida", insumoDescr, quantidade)
+                    nivelIncerteza = 3
+                else:
+                    insumoDescr = insumoDescr[0]
+
+                    insumosDesc = insumosPreco[(insumosPreco['DESCR'] ==  insumoDescr.strip())
+                                                & (insumosPreco['UNIVOL'] == formulaUnidade.strip())
+                                                & (insumosPreco['UNIDA'] == unidade.strip())]
 
 
-@app.callback(
-    [Output('grafico-barras', 'figure')
-    , Output('cidades', 'children'),
-    Output('mapa', 'figure') ],
-    [Input('estado-dropdown', 'value'),
-    Input('mapa-dropdown', 'value'),
-    Input('grafico-dropdown', 'value')
-    ]
-    )
-def update_graph(estado, campo_mapa, campo_grafico):
-    #Carregar informacões de cada cidade
-    url = "https://brasil.io/dataset/covid19/caso_full/?state="+estado+"&is_last=true&place_type=city&format=csv"
-    response = requests.get(url, headers=headers)
-    file_object = io.StringIO(response.content.decode('utf-8'))
-    covid = pd.read_csv(file_object)
+                    if not insumosDesc.empty:
 
-    #carregar informações do estado
-    url = "https://brasil.io/dataset/covid19/caso_full/?state="+estado+"&place_type=state&format=csv"
-    response = requests.get(url, headers=headers)
-    file_object = io.StringIO(response.content.decode('utf-8'))
-    estado = pd.read_csv(file_object)
+                        insumoDf = insumosPreco[
+                            (insumosPreco['UNIDA'] == unidade.strip())
+                            & (insumosPreco['CDPRO'] == insumosDesc.iloc[0].CDPRO)
+                            & (insumosPreco['CDPRIN'] == insumosDesc.iloc[0].CDPRIN)
+                            #& (insumos['PRODUNIDA'].str.strip() == 'ML')
+                            #& (insumos['QTDINS'] == 1)
+                            & (insumosPreco['UNIVOL'] == formulaUnidade.strip())
+                            & (insumosPreco['PRCORRETO'] != 0)
+                        ]
 
-    covid = covid.rename(columns={"last_available_confirmed_per_100k_inhabitants": "Casos Confirmados por 100k habitantes", "last_available_confirmed": "Total de Confirmados", "last_available_deaths": "Total de Óbitos",
-                                "estimated_population_2019": "População Estimada em 2019", "city": "Nome", "new_deaths": "Óbitos por dia", "last_available_death_rate": "Taxa de Mortalidade", "new_confirmed": "Novos Confirmados por dia"})
-
-    estado = estado.rename(columns={"last_available_confirmed_per_100k_inhabitants": "Casos Confirmados por 100k habitantes", "last_available_confirmed": "Total de Confirmados", "last_available_deaths": "Total de Óbitos",
-                                    "estimated_population_2019": "População Estimada em 2019", "city": "Nome", "new_deaths": "Óbitos por dia", "last_available_death_rate": "Taxa de Mortalidade", "new_confirmed": "Novos Confirmados por dia"})
-    # remover nulos
-    covid = covid[covid['Casos Confirmados por 100k habitantes'] > 0]
-    idEstado = int(estado['city_ibge_code'].iloc[0])
-
-    covid['Casos Confirmados por 100k habitantes'] = covid['Casos Confirmados por 100k habitantes'].round(2)
-
-    tabelaDF = covid[['Nome', 'Casos Confirmados por 100k habitantes', 'Total de Confirmados', 'Total de Óbitos', 'Taxa de Mortalidade',
-                    'População Estimada em 2019']].sort_values(by=['Casos Confirmados por 100k habitantes'], ascending=False).head(10)
-
-    estado = estado.sort_values(by=['date'])
-    estado['Media 7 dias'] = estado[campo_grafico].rolling(window=7).mean()
-    estado = estado.tail(90)
-
-    estado = estado.set_index('date')
-    estado['data'] = estado.index
-    
-
-    fig2 = px.line(estado, x='data', y="Media 7 dias", title=campo_grafico)
-    fig2.add_bar(x=estado.index, y=estado[campo_grafico], name=campo_grafico)
-
-    fig2.update_layout(
-     plot_bgcolor=colors['background'],
-     paper_bgcolor=colors['background'],
-     font_color=colors['text']
-    )
-
-    data = tabelaDF.to_dict('rows')
-    columns =  [{"name": i, "id": i,} for i in (tabelaDF.columns)]
-
-    cidades = requests.get("https://servicodados.ibge.gov.br/api/v2/malhas/"+str(idEstado)+"/?formato=application/vnd.geo+json&resolucao=5", headers=headers)
-    cidades = cidades.json()
-
-    covid['codarea'] = covid['city_ibge_code']
-    covid = covid.set_index('codarea')
-    covid['codarea'] = covid.index.astype(int).astype(str)
-
-    covid['hover'] = covid['Nome'] + '<br>' + \
-    'casos por 100k h. :' + covid['Casos Confirmados por 100k habitantes'].astype(str) + '<br>' + \
-    'Taxa Letalidade: ' + covid['Taxa de Mortalidade'].astype(str) + '<br>' + \
-    'Total de Óbitos: ' + covid['Total de Óbitos'].astype(str) + '<br>' + \
-    'População Est. 2019: ' + covid['População Estimada em 2019'].astype(str)
-
-    tabela = dash_table.DataTable(data=data, columns=columns,
-        style_cell_conditional=[
-        {
-            'if': {'column_id': c},
-            'textAlign': 'left'
-        } for c in ['Date', 'Region']
-    ],
-    style_data_conditional=[
-        {
-            'if': {'row_index': 'odd'},
-            'backgroundColor': 'rgb(248, 248, 248)'
-        }
-    ],
-    style_header={
-        'backgroundColor': 'rgb(230, 230, 230)',
-        'fontWeight': 'bold'
-    })
+                        #insumoDf = insumoDf.sort_values(by=['COUNT'], ascending=False)
 
 
-    mapa = px.choropleth(covid, geojson=cidades, locations='codarea', color=campo_mapa,
-                           color_continuous_scale="Viridis",
-                           range_color=(covid[campo_mapa].min(), covid[campo_mapa].max()),
-                           featureidkey="properties.codarea",
-                            projection="mercator",
-                            hover_name="hover",
-                            labels={campo_mapa: campo_mapa}
-                          )
-    mapa.update_geos(fitbounds="locations", visible=False)
-    mapa.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
 
-    mapa.update_layout(
-     plot_bgcolor=colors['background'],
-     paper_bgcolor=colors['background'],
-     font_color=colors['text']
-    )
+                        valorUnit = insumoDf.iloc[0].PRCORRETO
 
-    return fig2, tabela, mapa
+                        valor = valorUnit * qtd 
+                        
+                        valor = valor * formulaQtd
+                        
+                        total += valor
 
-if __name__ == '__main__':
-    app.run_server(debug=True)
+
+                        if insumoDf.iloc[0].VAR > 1 and nivelIncerteza == 0:
+                            nivelIncerteza = 1
+                            valorIncerto += valor
+                
+                        if insumoDf.iloc[0].DIST < 50 and insumoDf.iloc[0].VAR > 0.5:
+                            nivelIncerteza = 4
+                            valorIncerto += valor
+
+                        valorInsumo += "\r\n" + insumoDescr + " " + str(qtd) + unidade + " : R$ " + str(round(valor,2)) + " vlrUnid: R$" + str(round(insumoDf.iloc[0].PRCORRETO,4)) + " u: "+ str(insumoDf.iloc[0].UNIDA) + " var " + str(insumoDf.iloc[0].VAR) + "dist preço "+ str(insumoDf.iloc[0].DIST)
+                        #print(valorInsumo)
+                        print(insumoDescr)
+                    else:
+                        print(insumoDescr + " "+ unidade + ": Não encontrado")
+                        nivelIncerteza = 3
+                    print("calc --- %s seconds ---" % (time.time() - start_time))
+                    start_time = time.time()
+
+            if total < 300:
+                total += 30
+            #if temUN:
+                #total += 30
+            
+            if valorIncerto > 0 and (valorIncerto/(total/100) < 20 and valorIncerto < 40):
+                nivelIncerteza = 0
+            
+            erro = round(abs(100 - (total / (float(row['Valor'])/100.0))),2)
+
+            erroValor = abs((total - float(row['Valor'])))
+        
+            return 'Valor Incerto '+ str(valorIncerto) + '\r\n'+ valorInsumo+ '\r\n Calculado: '+ str(round(total,2)) + ' Correto: ' + row['Valor'] + " \r\n diferença % :" + str(erro) + " nível Incerteza: " + str(nivelIncerteza)
+    except Exception as e:
+        return str(e)

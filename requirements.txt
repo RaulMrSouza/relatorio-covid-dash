@@ -11,6 +11,7 @@ dash-table==4.10.1
 dask==2.1.0
 decorator==4.4.0
 Flask==1.1.1
+Flask-Caching==1.9.0
 Flask-Compress==1.4.0
 gunicorn==19.9.0
 html5lib==1.0.1
