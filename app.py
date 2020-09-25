@@ -15,8 +15,10 @@ config = {
 }
 app = Flask(__name__)
 
+server = app.server
+
 # tell Flask to use the above defined config
-app.config.from_mapping(config)
+#app.config.from_mapping(config)
 #cache = Cache(app)
 
 def UnidadePorTexto(quantidade):
@@ -32,11 +34,11 @@ def UnidadePorTexto(quantidade):
     
     return (qtd, unidade)
 
-@app.route('/')
+@server.route('/')
 def Hello():
     return 'Hi';
 
-@app.route('/iniciar')
+@server.route('/iniciar')
 def iniciar():
     insumos = pd.read_csv("roval2.csv")
     insumos['PRCORRETO'] = insumos['PRCORRETO'].astype(float)
@@ -198,3 +200,6 @@ def calcular_preco():
             return 'Valor Incerto '+ str(valorIncerto) + '\r\n'+ valorInsumo+ '\r\n Calculado: '+ str(round(total,2)) + ' Correto: ' + row['Valor'] + " \r\n diferença % :" + str(erro) + " nível Incerteza: " + str(nivelIncerteza)
     except Exception as e:
         return str(e)
+
+if __name__ == '__main__':
+    app.run_server(debug=True)
