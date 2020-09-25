@@ -5,7 +5,7 @@ import difflib
 import numpy as np
 import time
 #from werkzeug.contrib.cache import SimpleCache
-from flask_caching import Cache
+#from flask_caching import Cache
 #cache = SimpleCache()
 
 config = {
