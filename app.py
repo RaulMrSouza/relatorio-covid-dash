@@ -9,7 +9,12 @@ import dash_core_components as dcc
 import dash_html_components as html
 import dash_table
 from dash.dependencies import Input, Output, State
+import dash_bootstrap_components as dbc
 import flask
+
+from UnidadePorTexto import UnidadePorTexto
+from ResultadoPreco import Resultado_Preco, Detalhe_Insumo
+import calculo_preco
 #from werkzeug.contrib.cache import SimpleCache
 #from flask_caching import Cache
 #cache = SimpleCache()
@@ -27,7 +32,8 @@ server = flask.Flask(__name__)
 app = dash.Dash(
     __name__,
     server=server,
-    routes_pathname_prefix='/dash/'
+    routes_pathname_prefix='/dash/',
+    external_stylesheets=[dbc.themes.BOOTSTRAP]
 )
 
 
@@ -39,57 +45,83 @@ app = dash.Dash(
 
 
 app.layout = html.Div([
-    html.H1("Calculo de Preços"),
-    html.Div(["Formula: ",
-              dcc.Input(id='formula', value='30 ENV | CAFEINA   100MG', type='text', style=dict(
-                  width='80%',
-                  display='table',
-              ))]),
-    html.Br(),
+    dbc.Alert([
+    html.H1("Calculo de Preços", className="alert-heading")
+    ]),
+    html.Div(children= [
+        
+    dbc.Label("Formula: "),
+    dbc.Textarea(className="mb-3", id='formula', value='30 ENV | CAFEINA   100MG'),
+
+
+
     html.Div(["Valor Correto: ",
-    dcc.Input(id='valor', value=100, type='number')]),
+              dcc.Input(id='valor', value=100, type='number')]),
     html.Br(),
-    html.Button('Calcular', id='button-2'),
+
+    dbc.Button( "Calcular preço", color="primary", className="mr-1", id='button-2'),
     html.Br(),
     html.Br(),
-    html.Div(id='resultado'),
-    # dcc.RadioItems(
-    #     id='toggle',
-    #     options=[{'label': i, 'value': i} for i in ['Mostrar Detalhes', 'Esconder']],
-    #     value='Show'
-    # ),
-    html.Br(),
-    html.Details([html.Summary('Detalhes'),
-    html.Div(id='detalhes')]),
+
+    dcc.Loading(
+        id="loading-3",
+        type="circle",
+        children=html.Div(id='div-resultado')
+    )]
+    , style={'marginLeft': 25})
 
 ])
 
 
 @app.callback(
-    [Output(component_id='resultado', component_property='children'),
-    Output(component_id='detalhes', component_property='children')],
+    [
+        Output(component_id='div-resultado', component_property='children')
+    ],
     [Input('button-2', 'n_clicks')],
     state=[State(component_id='formula', component_property='value'),
-    State(component_id='valor', component_property='value'),
-    ]
+           State(component_id='valor', component_property='value'),
+           ]
 )
 def update_output_div(n_clicks, formula, valor):
-    ret1, ret2 = calcular_preco(formula, valor, False) 
-    return '{}'.format(ret1), ret2
+    ret1, ret2, resultado = calculo_preco.calcular_preco(formula, valor, False)
 
+    div_detalhes = []
+    for detalhe in resultado.detalhes_insumos:
+        div_detalhes.append(
+            dbc.Row([
+                html.Div(children=[
+                    html.Div(children='''
+                {}
+                '''.format(detalhe.nome)),
+                    html.Div(children='''
+                Entcontrado: {}
+                '''.format(detalhe.encontrado)),
 
-def UnidadePorTexto(quantidade):
-    for i, c in enumerate(quantidade):
-        if not c.isdigit() and c != ',' and c != '.' and c != ' ':
-            break
-    qtd = -1
-    try:
-        qtd = float(quantidade[:i])
-    except ValueError:
-        print("")
-    unidade = quantidade[i:]
+                html.Div(children='''
+                Preço: {}
+                '''.format(detalhe.valor)),
 
-    return (qtd, unidade)
+                html.Br()
+
+                ]
+                )
+            ])
+        )
+
+    ret = [
+        html.Br(),
+        html.Div(children='''
+        Valor Calculado R$ {:.2f}
+    '''.format(resultado.preco_calculado)),
+        html.Div(children='''
+        Nivel Incerteza: {}
+    '''.format(resultado.nivel_incerteza)),
+        html.Br(),
+        html.Details([html.Summary('Detalhes'),
+                      html.Div(id='detalhes', children=div_detalhes)])]
+
+    # return '{}'.format(ret1), ret2, ret
+    return [ret]
 
 
 @server.route('/')
@@ -119,149 +151,12 @@ def iniciar():
     return 'Ok'
 
 
-def calcular_preco(desc, valor, endpoint):
-    start_time = time.time()
-    #insumos = pd.read_csv("roval2.csv")
-    print("--- %s seconds ---" % (time.time() - start_time))
-    start_time = time.time()
-    #insumos = cache.get('insumos')
-    insumos = None
-    try:
-        if insumos == None:
-            insumos = pd.read_csv("roval2.csv")
-            insumosNomes = insumos.DESCR
-            insumosNomes = np.unique(insumosNomes).tolist()
-            insumosPreco = pd.read_csv("InsumosPreco2.csv")
-            #cache.set('insumos', insumos, timeout=5 * 60*300)
-            #ache.set('insumosNomes', insumosNomes, timeout=5 * 60*300)
-            insumosPreco = insumosPreco.sort_values(
-                by=['COUNT'], ascending=False)
-            #cache.set('insumosPreco', insumosPreco, timeout=5 * 60*300)
-    except:
-        pass
-    #insumosNomes = cache.get('insumosNomes')
-    #insumosPreco = cache.get('insumosPreco')
-
-    insumos = insumos.sort_values(by=['COUNT'], ascending=False)
-
-    orcamentos = pd.DataFrame(
-        data={'Descricao': [desc.upper()], 'Valor': [valor]})
-
-    orcamentos = orcamentos.dropna(subset=['Descricao'])
-
-    orcamentos = orcamentos.head(200)
-
-    print("--- %s Carregar ---" % (time.time() - start_time))
-    start_time = time.time()
-
-    for index, row in orcamentos.iterrows():
-
-        formula = row['Descricao']
-
-        formulaVolume = str(formula).split('|')[0]
-
-        (formulaQtd, formulaUnidade) = UnidadePorTexto(formulaVolume)
-
-        insumosFormula = str(formula).split('|')[1].split(';')
-
-        total = 0
-
-        nivelIncerteza = 0
-
-        valorIncerto = 0
-
-        valorInsumo = ""
-
-        for insumo in insumosFormula:
-
-            print("--- %s seconds ---" % (time.time() - start_time))
-            start_time = time.time()
-
-            insumoDescr = difflib.get_close_matches(
-                (''.join(insumo.split(' ')[:-1])).strip(), insumosNomes, n=1, cutoff=.6)
-
-            print("match--- %s seconds ---" % (time.time() - start_time))
-            start_time = time.time()
-
-            quantidade = insumo.split(' ')[-1]
-            (qtd, unidade) = UnidadePorTexto(quantidade)
-
-            if len(insumoDescr) == 0:
-                print(insumo.strip() + ": Não encontrado match")
-                nivelIncerteza = 3
-            elif qtd == -1:
-                print("Qtd Invalida", insumoDescr, quantidade)
-                nivelIncerteza = 3
-            else:
-                insumoDescr = insumoDescr[0]
-
-                insumosDesc = insumosPreco[(insumosPreco['DESCR'] == insumoDescr.strip())
-                                           & (insumosPreco['UNIVOL'] == formulaUnidade.strip())
-                                           & (insumosPreco['UNIDA'] == unidade.strip())]
-
-                if not insumosDesc.empty:
-
-                    insumoDf = insumosPreco[
-                        (insumosPreco['UNIDA'] == unidade.strip())
-                        & (insumosPreco['CDPRO'] == insumosDesc.iloc[0].CDPRO)
-                        & (insumosPreco['CDPRIN'] == insumosDesc.iloc[0].CDPRIN)
-                        # & (insumos['PRODUNIDA'].str.strip() == 'ML')
-                        # & (insumos['QTDINS'] == 1)
-                        & (insumosPreco['UNIVOL'] == formulaUnidade.strip())
-                        & (insumosPreco['PRCORRETO'] != 0)
-                    ]
-
-                    #insumoDf = insumoDf.sort_values(by=['COUNT'], ascending=False)
-
-                    valorUnit = insumoDf.iloc[0].PRCORRETO
-
-                    valor = valorUnit * qtd
-
-                    valor = valor * formulaQtd
-
-                    total += valor
-
-                    if insumoDf.iloc[0].VAR > 1 and nivelIncerteza == 0:
-                        nivelIncerteza = 1
-                        valorIncerto += valor
-
-                    if insumoDf.iloc[0].DIST < 50 and insumoDf.iloc[0].VAR > 0.5:
-                        nivelIncerteza = 4
-                        valorIncerto += valor
-
-                    valorInsumo += "\r\n" + insumoDescr + " " + str(qtd) + unidade + " : R$ " + str(round(valor, 2)) + " vlrUnid: R$" + str(round(
-                        insumoDf.iloc[0].PRCORRETO, 4)) + " u: " + str(insumoDf.iloc[0].UNIDA) + " var " + str(insumoDf.iloc[0].VAR) + "dist preço " + str(insumoDf.iloc[0].DIST)
-                    # print(valorInsumo)
-                    print(insumoDescr)
-                else:
-                    print(insumoDescr + " " + unidade + ": Não encontrado")
-                    nivelIncerteza = 3
-                print("calc --- %s seconds ---" % (time.time() - start_time))
-                start_time = time.time()
-
-        if total < 300:
-            total += 30
-        # if temUN:
-            #total += 30
-
-        if valorIncerto > 0 and (valorIncerto/(total/100) < 20 and valorIncerto < 40):
-            nivelIncerteza = 0
-
-        erro = round(abs(100 - (total / (float(row['Valor'])/100.0))), 2)
-
-        erroValor = abs((total - float(row['Valor'])))
-        if endpoint:
-            return 'Valor Incerto ' + str(valorIncerto) + '\r\n' + str(valorInsumo) + '\r\n Calculado: ' + str(round(total, 2)) + ' Correto: ' + str(row['Valor']) + " \r\n diferença % :" + str(erro) + " nível Incerteza: " + str(nivelIncerteza)
-        else:
-            return 'Valor :' + str(round(total, 2)), 'Valor Incerto ' + str(valorIncerto) + '\r\n' + str(valorInsumo) + '\r\n Calculado: ' + str(round(total, 2)) + ' Correto: ' + str(row['Valor']) + " \r\n diferença % :" + str(erro) + " nível Incerteza: " + str(nivelIncerteza)
-
-
 @server.route('/preco')
 def calcular_preco_endpoint():
     try:
         desc = request.args.get('desc', str)
         valor = request.args.get('valor', float)
-        return calcular_preco(desc, valor, True)
+        return calculo_preco.calcular_preco(desc, valor, True)
     except Exception as e:
         return str(e)
 
